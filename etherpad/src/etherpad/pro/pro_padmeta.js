@@ -17,7 +17,7 @@
 import("stringutils");
 import("cache_utils.syncedWithCache");
 import("sync");
-import("netutils.urlPost");
+import("netutils.urlRequest");
 
 import("etherpad.log")
 import("etherpad.pad.model");
@@ -61,12 +61,8 @@ function accessProPad(globalPadId, fn) {
         padRecord.deletedDate = new Date();
         isDirty = true;
 
-        var body = renderTemplateAsString('solr/delete.ejs', {
-          "id": globalPadId
-        });
         try {
-          urlPost("http://" + appjet.config.solrHostPort + "/solr/update", body,
-            { "Content-Type": "text/xml; charset=utf-8" });
+          urlRequest('DELETE', appjet.config.elasticURL + "/etherpad/" + encodeURIComponent(globalPadId));
         } catch (ex) {
           log.logException(ex);
         }
@@ -75,7 +71,7 @@ function accessProPad(globalPadId, fn) {
         padRecord.isDeleted = false;
         padRecord.deletedDate = null;
         isDirty = true;
-        model.updateSolrIndexForPad(globalPadId);
+        model.updateSearchIndexForPad(globalPadId);
       },
       getPassword: function() { return padRecord.password; },
       setPassword: function(newPass) {

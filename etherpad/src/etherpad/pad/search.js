@@ -1,21 +1,19 @@
 import("execution");
 import("etherpad.log");
-import("netutils.urlPost");
+import("netutils.urlRequest");
 
 
 function onStartup() {
   execution.initTaskThreadPool("async-pad-indexer", 1);
 }
 
-function scheduleAsyncSolrUpdate(body) {
+function scheduleAsyncSearchUpdate(body) {
   execution.scheduleTask('async-pad-indexer', 'performAsyncUpdate', 0, [body]);
 }
 
 serverhandlers.tasks.performAsyncUpdate = function(body) {
   try {
-    urlPost("http://" + appjet.config.solrHostPort + "/solr/update", body,
-          { "Content-Type": "text/xml; charset=utf-8",
-          connectTimeout: 1*1000, readTimeout: 2*1000});
+    urlRequest('PUT', appjet.config.elasticURL + "/etherpad/" + encodeURIComponent(body.id), JSON.stringify(body));
   } catch (ex) {
     log.logException(ex);
   }

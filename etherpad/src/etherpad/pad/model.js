@@ -20,7 +20,7 @@ import("sqlbase.sqlcommon");
 import("sqlbase.sqlobj");
 import("timer");
 import("sync");
-import("netutils.urlPost");
+import("netutils.urlRequest");
 import("dateutils");
 
 import("etherpad.collab.ace.easysync2.{Changeset,AttribPool}");
@@ -323,16 +323,10 @@ function accessPadGlobal(padId, padFunc, rwMode, skipAccessCheck) {
 
           padevents.onNewPad(pad, optTitle);
         },
-        destroy: function(delaySolrCommit) { // you may want to collab_server.bootAllUsers first
+        destroy: function(delaySearchCommit) { // you may want to collab_server.bootAllUsers first
           padevents.onDestroyPad(pad);
 
-          var body = renderTemplateAsString('solr/delete.ejs', {
-            "id": padId
-          });
-
-          var commitParam = delaySolrCommit ? "" : "commit=true";
-          urlPost("http://" + appjet.config.solrHostPort + "/solr/update?" + commitParam, body,
-                  { "Content-Type": "text/xml; charset=utf-8" });
+          urlRequest('DELETE', appjet.config.elasticURL + "/etherpad/" + encodeURIComponent(padId));
 
           _destroyPadStringArray(padId, "revs");
           _destroyPadStringArray(padId, "revs10");
@@ -374,9 +368,9 @@ function accessPadGlobal(padId, padFunc, rwMode, skipAccessCheck) {
           // cache now to speed up padlisting
           pad.getTaskCounts();
 
-          // only update SOLR for pro-pads
+          // only update Search for pro-pads
           if (padutils.isProPadId(padId)) {
-            pad.updateSolrIndex();
+            pad.updateSearchIndex();
           }
         },
         pool: function() {
@@ -894,7 +888,7 @@ function accessPadGlobal(padId, padFunc, rwMode, skipAccessCheck) {
           var cs = pad.getChangesetBetweenRevisions(from, to);
           return pad.getDiffATextForChangeset(cs, from, includeDeletes);
         },
-        updateSolrIndex: function() {
+        updateSearchIndex: function() {
           var atext = pad.atext();
           var title = "";
           var isDeleted = false;
@@ -952,16 +946,14 @@ function accessPadGlobal(padId, padFunc, rwMode, skipAccessCheck) {
             }
           });
 
-          text = text.replace(XML_UNSAFE_CHARS_RE, '');
-
-          // index in /solr/update
-          var body = renderTemplateAsString('solr/update.ejs', {
+          var body = {
             "id": padId,
             "domainId": padutils.getDomainId(padId),
             "lastedit": dateutils.dateFormat(revDate, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
             "tlastedit": dateutils.dateFormat(revDate, "yyyy-MM-dd'T'HH:mm:ss'Z'"),
             "revision": meta.head,
             "contents": text,
+            "terms": text.replace(/#/g, 'ht_'),
             "chat": [],      // XXX
             "deleted": false,
             "invitedId": invitedIds,
@@ -978,9 +970,9 @@ function accessPadGlobal(padId, padFunc, rwMode, skipAccessCheck) {
             "visibility": visibility,
             "viewsTotal": viewsTotal || 0,
             "viewsRecent": viewsRecent || 0
-          });
+          };
 
-          search.scheduleAsyncSolrUpdate(body);
+          search.scheduleAsyncSearchUpdate(body);
 
         },
 
@@ -992,7 +984,7 @@ function accessPadGlobal(padId, padFunc, rwMode, skipAccessCheck) {
         appjet.requestCache.padsAccessing[padId] = pad;
         var padDomainId = padutils.getDomainId(padId);
         if (padDomainId && !domains.domainIsOnThisServer(padDomainId)) {
-          log.warn("Accessing pad " + padId + " from wrong server");
+            //log.warn("Accessing pad " + padId + " from wrong server");
         }
         return padFunc(pad);
       }
@@ -1219,9 +1211,9 @@ function rollforwardToRevNum(padId, revNum, opt_skipChecks) {
   });
 }
 
-function updateSolrIndexForPad(globalPadId) {
+function updateSearchIndexForPad(globalPadId) {
   accessPadGlobal(globalPadId, function(pad) {
-    pad.updateSolrIndex();
+    pad.updateSearchIndex();
   }, 'r');
 }
 

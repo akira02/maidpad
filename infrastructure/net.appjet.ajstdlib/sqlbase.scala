@@ -44,7 +44,7 @@ class SQLBase(driverClass: String, url: String, userName: String, password: Stri
   cpds.setDriverClass(driverClass);
   var jdbcUrl = url;
   if (isMysql) {
-    jdbcUrl += "?useUnicode=true&characterEncoding=UTF-8";
+    jdbcUrl += "?useUnicode=true&characterEncoding=UTF-8&tcpKeepAlive=true";
     if (requireSSL) {
       jdbcUrl += "&useSSL=true&requireSSL=true";
     }
@@ -57,6 +57,7 @@ class SQLBase(driverClass: String, url: String, userName: String, password: Stri
     cpds.setPassword(password);
   }
 
+  cpds.setIdleConnectionTestPeriod(30);
   cpds.setMaxPoolSize(config.jdbcPoolSize);
   cpds.setMaxConnectionAge(6*60*60); // 6 hours
   if (config.devMode) {
